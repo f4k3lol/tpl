@@ -1,0 +1,203 @@
+apiVersion: apps/v1
+kind: {{ .Values.kind }}
+metadata:
+  name: {{ include "tpl.fullname" . }}
+  labels:
+{{- include "tpl.labels" . | nindent 4 }}
+spec:
+{{- if eq .Values.kind "Deployment" }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- else if eq .Values.kind "StatefulSet" }}
+  serviceName: {{ .Values.serviceName }}
+  replicas: {{ .Values.replicaCount }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.persistentVolumeClaimRetentionPolicy }}
+  persistentVolumeClaimRetentionPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.volumeClaimTemplates }}
+  volumeClaimTemplates:
+    {{- range $vct := . }}
+    - metadata:
+      {{- toYaml $vct.metadata | nindent 8 }}
+      spec:
+      {{- toYaml (mustMergeOverwrite (dict) $.Values.defaultVolumeClaimTemplateSpec ($vct.spec | default $.Values.defaultVolumeClaimTemplateSpec)) | nindent 8 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+  selector:
+    matchLabels:
+{{- include "tpl.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+{{- with .Values.podAnnotations }}
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- range $container_name, $container_spec := .Values.containers }}
+  {{- if $container_spec.configs }}
+    {{- range $config_name, $config_spec := $container_spec.configs }}
+        checksum/{{ $config_name }}: {{ toJson $config_spec | sha256sum }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+      labels:
+{{- include "tpl.selectorLabels" . | nindent 8 }}
+    spec:
+      enableServiceLinks: {{ toString .Values.enableServiceLinks }}
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
+{{- end }}
+{{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{- end }}
+{{- range $tsc := .Values.topologySpreadConstraints }}
+        - labelSelector:
+            matchLabels:
+  {{- include "tpl.selectorLabels" $ | nindent 14 }}
+  {{- toYaml . | nindent 10 }}
+{{- end }}
+{{- with .Values.podSecurityContext }}
+      securityContext:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.nodeSelector }}
+      nodeSelector:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.affinity }}
+      affinity:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.tolerations }}
+      tolerations:
+  {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- if eq "true" (include "tpl.volumesPresent" $) }}
+      volumes:
+  {{- range $container_name, $container_spec := .Values.containers }}
+    {{- range $config_name, $config_spec := $container_spec.configsFromSecret }}
+      - name: secret-{{ $config_name }}
+        secret:
+          secretName: {{ $config_spec.secretName }}
+    {{- end }}
+    {{- range $config_name, $config_spec := $container_spec.configs }}
+      - name: cmap-{{ $config_name }}
+        configMap:
+          name: {{ include "tpl.fullname" $ }}-{{ $config_name }}
+    {{- end }}
+    {{- if eq $.Values.kind "Deployment" }}
+      {{- range $volume := $container_spec.volumes }}
+      - name: {{ $volume.name }}
+        {{- if hasKey $volume "emptyDir" }}
+        emptyDir: {{ $volume.emptyDir | toYaml | nindent 10 }}
+        {{- else if hasKey $volume "existingClaim" }}
+        persistentVolumeClaim:
+          claimName: {{ $volume.existingClaim }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+      containers:
+{{- range $container_name, $container_spec := .Values.containers }}
+      - name: {{ $container_name }}
+        image: {{ $container_spec.image.registry | default $.Values.defaultContainer.image.registry -}}/
+        {{- with $container_spec.image.baseRepository | default $.Values.defaultContainer.image.baseRepository -}}{{- . -}}/{{- end -}}
+        {{- $container_spec.image.repository | default $.Values.defaultContainer.image.repository -}}:
+        {{- $container_spec.image.tag | default $.Values.defaultContainer.image.tag }}
+        imagePullPolicy: {{ $container_spec.imagePullPolicy | default $.Values.defaultContainer.imagePullPolicy }}
+        ports:
+  {{- range $port_spec := $container_spec.ports | default $.Values.defaultContainer.ports }}
+        - name: {{ $port_spec.name }}
+          containerPort: {{ $port_spec.containerPort }}
+          protocol: {{ $port_spec.protocol }}
+  {{- end }}
+  {{- with $container_spec.livenessProbe | default $.Values.defaultContainer.livenessProbe }}
+        livenessProbe:
+    {{- toYaml . | nindent 10 }}
+  {{- end }}
+  {{- with $container_spec.readinessProbe | default $.Values.defaultContainer.readinessProbe }}
+        readinessProbe:
+    {{- toYaml . | nindent 10 }}
+  {{- end }}
+  {{- with $container_spec.resources | default $.Values.defaultContainer.resources }}
+        resources:
+    {{- toYaml . | nindent 10 }}
+  {{- end }}
+  {{- with $container_spec.securityContext }}
+        securityContext:
+    {{- toYaml . | nindent 10 }}
+  {{- end }}
+  {{- if $container_spec.command }}
+        command:
+    {{- toYaml $container_spec.command | nindent 10 }}
+  {{- end }}
+  {{- if $container_spec.args }}
+        args:
+    {{- toYaml $container_spec.args | nindent 10 }}
+  {{- end }}
+  {{- if coalesce $container_spec.volumes $container_spec.configs $container_spec.configsFromSecret }}
+        volumeMounts:
+    {{- range $config_name, $config_spec := $container_spec.configsFromSecret }}
+        - name: secret-{{ $config_name }}
+          mountPath: {{ $config_spec.mountPath }}
+          subPath: {{ $config_spec.secretKey }}
+          readOnly: true
+    {{- end }}
+    {{- range $config_name, $config_spec := $container_spec.configs }}
+        - name: cmap-{{ $config_name }}
+          mountPath: {{ $config_spec.mountPath }}
+          subPath: config
+    {{- end }}
+    {{- range $volume := $container_spec.volumes }}
+        - name: {{ $volume.name }}
+          mountPath: {{ $volume.mountPath }}
+      {{- if $volume.subPath }}
+          subPath: {{ $volume.subPath }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if coalesce $container_spec.env $container_spec.envFromSecret $container_spec.envFromConfigMap }}
+        env:
+    {{- range $key, $value := $container_spec.envFromSecret }}
+      {{- if $value }}
+        - name: {{ $key }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $value.secretName }}
+              key: {{ $value.secretKey }}
+      {{- end }}
+    {{- end }}
+    {{- range $key, $value := $container_spec.envFromConfigMap }}
+      {{- if $value }}
+        - name: {{ $key }}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ $value.configMapName }}
+              key: {{ $value.configMapKey }}
+      {{- end }}
+    {{- end }}
+    {{- range $key, $value := $container_spec.env }}
+      {{- if $value }}
+        - name: {{ $key }}
+          value: {{ tpl (quote $value) $ }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

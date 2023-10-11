@@ -1,0 +1,196 @@
+# чарт rabbitmq - зависимость от tpl, значит все переменные в него передаем в ключе tpl
+tpl:
+  # используются дефолтные значения
+  # replicaCount: 1
+  # imagePullSecrets: []
+  # nameOverride: ""
+  # fullnameOverride: ""
+  # podAnnotations: {}
+  # podSecurityContext: {}
+  # enableServiceLinks: false
+  # autoscaling:
+  #   enabled: false
+  #   minReplicas: 1
+  #   maxReplicas: 20
+  #   behavior: {}
+  #   metrics: []
+  # strategy:
+  #   type: RollingUpdate
+  # nodeSelector: {}
+  # topologySpreadConstraints: []
+  # tolerations: []
+  # affinity: {}
+  # extraValues: {}
+  # extraManifests: []
+  # terminationGracePeriodSeconds: null
+  containers:
+    # первый контейнер - rabbitmq
+    rabbitmq:
+      # image составляется из {{ $container_spec.image.registry | default $.Values.defaultContainer.image.registry }}/
+      # {{- with $container_spec.image.baseRepository | default $.Values.defaultContainer.image.baseRepository }}{{ . }}/{{- end }}
+      # {{ $container_spec.image.repository | default $.Values.defaultContainer.image.repository }}:
+      # {{ $container_spec.image.tag | default $.Values.defaultContainer.image.tag }}
+      image:
+        # registry: "" - применяется дефолт из defaultContainer
+        # registry: local.repo/
+        # baseRepository: test
+        repository: rabbitmq
+        tag: '3.11.3-management'
+      # imagePullPolicy: IfNotPresent
+      # volumes поддерживает только existingClaim
+      volumes:
+        - name: rabbitmq
+          existingClaim: rabbitmq
+          mountPath: /var/lib/rabbitmq
+      ports:
+        - name: mq
+          containerPort: 5672
+          # protocol: TCP - применяется дефолт
+        - name: management
+          containerPort: 15672
+          # protocol: TCP - применяется дефолт
+        - name: exporter
+          containerPort: 15692
+          # protocol: TCP - применяется дефолт
+      # объявление ресурсов
+      resources:
+        requests:
+          memory: 2Gi
+          cpu: 700m
+        limits:
+          memory: 6Gi
+          cpu: 2
+      # livenessProbe
+      livenessProbe:
+        exec:
+          command:
+          - rabbitmq-diagnostics
+          - -q
+          - ping
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 5
+      # конфиг маунтится через configmap, который рендерится через tpl. можно использовать переменные чарта
+      configs:
+        rabbitmq-conf:
+          mountPath: /etc/rabbitmq/conf.d/rabbitmq.conf
+          config: |
+            management.path_prefix=/cyberstudio/rabbitmq
+      # можно замаунтить секрет как конфиг
+      # configsFromSecret:
+      #   conf: { secretName: rabbitmq-config, secretKey: config1, mountPath: /config/config1.yml }
+      # список переменных который рендерится через tpl, можно использовать переменные чарта
+      env:
+        RABBITMQ_NODENAME: rabbit@rabbitmq
+        RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit consumer_timeout 72000000
+      # список переменных из секретов. секреты должны быть созданы в кластере на момент применения чарта
+      envFromSecret:
+        RABBITMQ_DEFAULT_USER: { secretName: rabbitmq, secretKey: user }
+        RABBITMQ_DEFAULT_PASS: { secretName: rabbitmq, secretKey: pass }
+        # список переменных из configmap. configmap должны быть созданы в кластере на момент применения чарта
+      envFromConfigMap:
+        TEST: { configMapName: testname, configMapKey: testkey }
+
+  services:
+    rabbitmq:
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '15692'
+        prometheus.io/path: '/metrics/per-object'
+      clusterIP: None
+      ports:
+        - name: mq
+          port: 5672
+        - name: management
+          port: 15672
+        - name: exporter
+          port: 15692
+      ingresses:
+        rabbitmq:
+          # className: nginx - применяется дефолт
+          # hosts: [] - применяется дефолт
+          # backend: service: name: rabbitmq - бекендом будет сервис в котором обозначен ингресс, изменить нельзя
+          # tls:
+          #   - hosts:
+          #     - test.cyberstudio.online
+          #     secretName: test-cert
+          paths:
+            - path: /cyberstudio/rabbitmq
+              # type: ImplementationSpecific - дефолт
+            - path: /cyberstudio/rabbitmq2
+              type: Prefix
+          servicePort: 15672
+      # используя такую конфигурацию
+        # example:
+        #   hosts: [host1, host2]
+        #   tls:
+        #     - hosts:
+        #       - test.cyberstudio.online
+        #       secretName: test-cert
+        #   annotations:
+        #     nginx.ingress.kubernetes.io/auth-type: basic
+        #     nginx.ingress.kubernetes.io/auth-secret: basicauth
+        #     nginx.ingress.kubernetes.io/auth-realm: "Enter your credentials"
+        #   servicePort: 1234
+        #   paths:
+        #     - path: /cyberstudio/example
+        #       # type: ImplementationSpecific - дефолт
+        #     - path: /cyberstudio/example2
+        #       type: Prefix
+      # мы получим следующий ингресс
+        # apiVersion: networking.k8s.io/v1
+        # kind: Ingress
+        # metadata:
+        #   name: example
+        #   labels:
+        #     helm.sh/chart: tpl-0.9.0
+        #     app.kubernetes.io/name: tpl
+        #     app.kubernetes.io/instance: pydio
+        #     app.kubernetes.io/version: "0.1.0"
+        #     app.kubernetes.io/managed-by: Helm
+        #   annotations:
+        #     nginx.ingress.kubernetes.io/auth-realm: "Enter your credentials"
+        #     nginx.ingress.kubernetes.io/auth-secret: "basicauth"
+        #     nginx.ingress.kubernetes.io/auth-type: "basic"
+        # spec:
+        #   ingressClassName: nginx
+        #   tls:
+        #     - hosts:
+        #       - test.cyberstudio.online
+        #       secretName: test-cert
+        #   rules:
+        #     - host: host1
+        #       http:
+        #         paths:
+        #           - path: /cyberstudio/example
+        #             pathType: ImplementationSpecific
+        #             backend:
+        #               service:
+        #                 name: rabbitmq
+        #                 port:
+        #                   number: 1234
+        #           - path: /cyberstudio/example2
+        #             pathType: Prefix
+        #             backend:
+        #               service:
+        #                 name: rabbitmq
+        #                 port:
+        #                   number: 1234
+        #     - host: host2
+        #       http:
+        #         paths:
+        #           - path: /cyberstudio/example
+        #             pathType: ImplementationSpecific
+        #             backend:
+        #               service:
+        #                 name: rabbitmq
+        #                 port:
+        #                   number: 1234
+        #           - path: /cyberstudio/example2
+        #             pathType: Prefix
+        #             backend:
+        #               service:
+        #                 name: rabbitmq
+        #                 port:
+        #                   number: 1234

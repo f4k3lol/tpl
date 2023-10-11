@@ -1,0 +1,82 @@
+# can be StatefulSet or Deployment (default)
+kind: Deployment
+# common vars
+replicaCount: 1
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+podSecurityContext: {}
+enableServiceLinks: false
+nodeSelector: {}
+topologySpreadConstraints: []
+tolerations: []
+affinity: {}
+extraValues: {}
+extraManifests: []
+terminationGracePeriodSeconds: null
+# deployment vars, if kind != Deployment - not used
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 20
+  behavior: {}
+  metrics: []
+strategy:
+  type: RollingUpdate
+# statefulset vars, if kind != StatefulSet - not used
+volumeClaimTemplates: []
+defaultVolumeClaimTemplateSpec: {}
+serviceName: ""
+minReadySeconds: 0
+podManagementPolicy: OrderedReady
+updateStrategy:
+  type: RollingUpdate
+persistentVolumeClaimRetentionPolicy:
+
+# container defaults. merged into each container spec
+defaultContainer:
+  image:
+    registry: docker.io
+    baseRepository: ""
+    repository: nginx
+    tag: alpine
+  imagePullPolicy: IfNotPresent
+  volumes:
+  ports:
+    - name: http
+      containerPort: 8000
+      protocol: TCP
+  resources:
+  livenessProbe:
+  readinessProbe:
+  command:
+  args:
+  env:
+  envFromSecret:
+  envFromConfigMap:
+  configs:
+  configsFromSecret:
+    #sconfig: { secretName: s1, secretKey: s2, mountPath: /etc/s1 }
+
+# service defaults. merged into each container spec
+defaultService:
+  type: ClusterIP
+  annotations: {}
+  ports:
+    - name: http
+      port: 8000
+      protocol: TCP
+      # nodePort: 8080
+      # targetPort: 80, default -> port
+  ingresses: {}
+
+# ingress defaults. merget into each ingress spec
+defaultIngress:
+  className: nginx
+  tls: []
+  annotations: {}
+  hosts: []
+  paths: [{ path: / }] #[{ path: /, type: Prefix }, { path: /v2 }]
+  defaultPathType: ImplementationSpecific
+  servicePort: 8000

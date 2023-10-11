@@ -1,0 +1,32 @@
+{{- range $svc_name, $svc_spec := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc_name }}
+  {{- with mustMergeOverwrite (dict) $.Values.defaultService.annotations ($svc_spec.annotations | default $.Values.defaultService.annotations) }}
+  annotations:
+    {{- range $annotation_name, $annotation_spec := . }}
+      {{- $annotation_name | nindent 4 }}: {{- tpl (quote $annotation_spec) $ | indent 1 }}
+    {{- end }}
+  {{- end }}
+  labels:
+  {{- include "tpl.labels" $ | nindent 4 }}
+spec:
+  selector:
+  {{- include "tpl.selectorLabels" $ | nindent 4 }}
+  type: {{ $svc_spec.type | default $.Values.defaultService.type }}
+  {{- if $svc_spec.clusterIP }}
+  clusterIP: None
+  {{- end }}
+  ports:
+  {{- range $port_spec := $svc_spec.ports | default $.Values.defaultService.ports }}
+  - name: {{ $port_spec.name }}
+    protocol: {{ $port_spec.protocol }}
+    port: {{ $port_spec.port }}
+    targetPort: {{ $port_spec.targetPort | default $port_spec.port }}
+    {{- if $port_spec.NodePort }}
+    nodePort: {{ $port_spec.nodePort }}
+    {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,85 @@
+# helm install --dry-run test . -f test.yaml --disable-openapi-validation
+containers:
+  # первый контейнер - rabbitmq
+  rabbitmq:
+    # image составляется из {{ $container_spec.image.registry | default $.Values.defaultContainer.image.registry }}{{ $container_spec.image.repository | default $.Values.defaultContainer.image.repository }}:{{ $container_spec.image.tag | default $.Values.defaultContainer.image.tag }}
+    image:
+      # registry: "" - применяется дефолт из defaultContainer
+      # registry: local.repo/
+      # baseRepository: test
+      repository: rabbitmq
+      tag: '3.11.3-management'
+    # imagePullPolicy: IfNotPresent
+    # volumes поддерживает только existingClaim
+    volumes:
+      - name: rabbitmq
+        #existingClaim: rabbitmq
+        emptyDir:
+          sizeLimit: 500Mi
+        mountPath: /var/lib/rabbitmq
+    ports:
+      - name: mq
+        containerPort: 5672
+        # protocol: TCP - применяется дефолт
+      - name: management
+        containerPort: 15672
+        # protocol: TCP - применяется дефолт
+      - name: exporter
+        containerPort: 15692
+        # protocol: TCP - применяется дефолт
+    # объявление ресурсов
+    resources:
+      requests:
+        memory: 2Gi
+        cpu: 700m
+      limits:
+        memory: 6Gi
+        cpu: 2
+    # livenessProbe
+    livenessProbe:
+      exec:
+        command:
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+    # конфиг маунтится через configmap, который рендерится через tpl. можно использовать переменные чарта
+    configs:
+      rabbitmq-conf:
+        mountPath: /etc/rabbitmq/conf.d/rabbitmq.conf
+        config: |
+          management.path_prefix=/cyberstudio/rabbitmq
+    # можно замаунтить секрет как конфиг
+    # configsFromSecret:
+    #   conf: { secretName: rabbitmq-config, secretKey: config1, mountPath: /config/config1.yml }
+    # список переменных который рендерится через tpl, можно использовать переменные чарта
+    env:
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbit consumer_timeout 72000000
+    # список переменных из секретов. секреты должны быть созданы в кластере на момент применения чарта
+    envFromSecret:
+      RABBITMQ_DEFAULT_USER: { secretName: rabbitmq, secretKey: user }
+      RABBITMQ_DEFAULT_PASS: { secretName: rabbitmq, secretKey: pass }
+    envFromConfigMap:
+      TEST: { configMapName: testname, configMapKey: testkey }
+
+# terminationGracePeriodSeconds: 40
+# extraManifests:
+#   - |
+#     apiVersion: v1
+#     kind: Service
+#     metadata:
+#       name: my-service
+#     spec:
+#       selector:
+#         app.kubernetes.io/name: MyApp
+#       ports:
+#         - protocol: TCP
+#           port: 80
+#           targetPort: 9376
+
+autoscaling:
+  enabled: true

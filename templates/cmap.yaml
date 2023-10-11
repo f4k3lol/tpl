@@ -1,0 +1,14 @@
+{{- range $container_name, $container_spec := .Values.containers }}
+  {{- if $container_spec.configs }}
+    {{- range $config_name, $config_spec := $container_spec.configs }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tpl.fullname" $ }}-{{ $config_name }}
+data:
+  config: |
+    {{- tpl $config_spec.config $ | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
