@@ -76,7 +76,7 @@ tpl:
         rabbitmq-conf:
           mountPath: /etc/rabbitmq/conf.d/rabbitmq.conf
           config: |
-            management.path_prefix=/cyberstudio/rabbitmq
+            management.path_prefix=/rabbitmq
       # можно замаунтить секрет как конфиг
       # configsFromSecret:
       #   conf: { secretName: rabbitmq-config, secretKey: config1, mountPath: /config/config1.yml }
@@ -113,12 +113,12 @@ tpl:
           # backend: service: name: rabbitmq - бекендом будет сервис в котором обозначен ингресс, изменить нельзя
           # tls:
           #   - hosts:
-          #     - test.cyberstudio.online
+          #     - test.online
           #     secretName: test-cert
           paths:
-            - path: /cyberstudio/rabbitmq
+            - path: /rabbitmq
               # type: ImplementationSpecific - дефолт
-            - path: /cyberstudio/rabbitmq2
+            - path: /rabbitmq2
               type: Prefix
           servicePort: 15672
       # используя такую конфигурацию
@@ -126,7 +126,7 @@ tpl:
         #   hosts: [host1, host2]
         #   tls:
         #     - hosts:
-        #       - test.cyberstudio.online
+        #       - test.online
         #       secretName: test-cert
         #   annotations:
         #     nginx.ingress.kubernetes.io/auth-type: basic
@@ -134,9 +134,9 @@ tpl:
         #     nginx.ingress.kubernetes.io/auth-realm: "Enter your credentials"
         #   servicePort: 1234
         #   paths:
-        #     - path: /cyberstudio/example
+        #     - path: /example
         #       # type: ImplementationSpecific - дефолт
-        #     - path: /cyberstudio/example2
+        #     - path: /example2
         #       type: Prefix
       # мы получим следующий ингресс
         # apiVersion: networking.k8s.io/v1
@@ -157,20 +157,20 @@ tpl:
         #   ingressClassName: nginx
         #   tls:
         #     - hosts:
-        #       - test.cyberstudio.online
+        #       - test.online
         #       secretName: test-cert
         #   rules:
         #     - host: host1
         #       http:
         #         paths:
-        #           - path: /cyberstudio/example
+        #           - path: /example
         #             pathType: ImplementationSpecific
         #             backend:
         #               service:
         #                 name: rabbitmq
         #                 port:
         #                   number: 1234
-        #           - path: /cyberstudio/example2
+        #           - path: /example2
         #             pathType: Prefix
         #             backend:
         #               service:
@@ -180,14 +180,14 @@ tpl:
         #     - host: host2
         #       http:
         #         paths:
-        #           - path: /cyberstudio/example
+        #           - path: /example
         #             pathType: ImplementationSpecific
         #             backend:
         #               service:
         #                 name: rabbitmq
         #                 port:
         #                   number: 1234
-        #           - path: /cyberstudio/example2
+        #           - path: /example2
         #             pathType: Prefix
         #             backend:
         #               service:
