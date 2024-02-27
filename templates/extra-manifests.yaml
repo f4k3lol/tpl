@@ -1,6 +1,6 @@
 {{ with .Values.extraManifests }}
----
   {{- range $manifest := . }}
-    {{ $manifest }}
+---
+    {{- tpl $manifest $ }}
   {{- end }}
 {{- end }}
