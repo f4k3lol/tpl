@@ -63,6 +63,9 @@ spec:
 {{- with .Values.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ . }}
 {{- end }}
+{{- with .Values.serviceAccountName }}
+      serviceAccountName: {{ . }}
+{{- end }}
 {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{- end }}
